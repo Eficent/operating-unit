@@ -51,6 +51,22 @@ class AccountMoveLine(models.Model):
                                   ' the Move Line and in the Move must be the'
                                   ' same.'))
 
+    @api.multi
+    def _prepare_writeoff_first_line_values(self, values):
+        res = super(AccountMoveLine, self)._prepare_writeoff_first_line_values(values)
+        if res['journal_id']:
+            journal = self.env['account.journal'].browse(res['journal_id'])
+            res['operating_unit_id'] = journal.operating_unit_id.id
+        return res
+
+    @api.multi
+    def _prepare_writeoff_second_line_values(self, values):
+        res = super(AccountMoveLine, self)._prepare_writeoff_second_line_values(values)
+        if res['journal_id']:
+            journal = self.env['account.journal'].browse(res['journal_id'])
+            res['operating_unit_id'] = journal.operating_unit_id.id
+        return res
+
 
 class AccountMove(models.Model):
     _inherit = "account.move"
