@@ -20,13 +20,21 @@ class AccountPayment(models.Model):
         compute='_compute_operating_unit_id', readonly=True, store=True)
 
     def _get_counterpart_move_line_vals(self, invoice=False):
-        res = super(AccountPayment,
-                    self)._get_counterpart_move_line_vals(invoice=invoice)
+        if not invoice:
+            return super(AccountPayment, self)._get_counterpart_move_line_vals(
+                invoice)
         if len(invoice) == 1:
+            res = super(AccountPayment,
+                        self)._get_counterpart_move_line_vals(invoice=invoice)
             res['operating_unit_id'] = invoice.operating_unit_id.id or False
+            return res
         else:
-            res['operating_unit_id'] = self.operating_unit_id.id or False
-        return res
+            for inv in invoice:
+                res = super(AccountPayment,
+                            self)._get_counterpart_move_line_vals(
+                    invoice=inv)
+                res['operating_unit_id'] = inv.operating_unit_id.id or False
+                return res
 
     def _get_liquidity_move_line_vals(self, amount):
         res = super(AccountPayment, self)._get_liquidity_move_line_vals(amount)
