@@ -53,7 +53,8 @@ class AccountMoveLine(models.Model):
 
     @api.multi
     def _prepare_writeoff_first_line_values(self, values):
-        res = super(AccountMoveLine, self)._prepare_writeoff_first_line_values(values)
+        res = super(
+            AccountMoveLine, self)._prepare_writeoff_first_line_values(values)
         if res['journal_id']:
             journal = self.env['account.journal'].browse(res['journal_id'])
             res['operating_unit_id'] = journal.operating_unit_id.id
@@ -61,7 +62,8 @@ class AccountMoveLine(models.Model):
 
     @api.multi
     def _prepare_writeoff_second_line_values(self, values):
-        res = super(AccountMoveLine, self)._prepare_writeoff_second_line_values(values)
+        res = super(
+            AccountMoveLine, self)._prepare_writeoff_second_line_values(values)
         if res['journal_id']:
             journal = self.env['account.journal'].browse(res['journal_id'])
             res['operating_unit_id'] = journal.operating_unit_id.id
@@ -92,9 +94,9 @@ class AccountMoveLine(models.Model):
         journal = self.journal_id
         name = self.name
         return {
-            'name': name + 'ou balance',
+            'name': name + 'OU Balance',
             'date': self.date,
-            'ref': self.ref + ' ou balance',
+            'ref': self.ref or '/',
             'company_id': self.company_id.id,
             'journal_id': journal.id,
         }
@@ -103,13 +105,13 @@ class AccountMoveLine(models.Model):
     def reconcile(self, writeoff_acc_id=False, writeoff_journal_id=False):
         res = super(AccountMoveLine, self).reconcile(
             writeoff_acc_id, writeoff_journal_id)
-        if not len(self.mapped('operating_unit_id')) == 1:
+        if (not len(self.mapped('operating_unit_id')) == 1 and
+                not self.env.context.get('reversal', False)):
             partial = self.env['account.partial.reconcile'].search(
                 [('debit_move_id', 'in', self.ids),
                  ('credit_move_id', 'in', self.ids),
                  ('bal_move_id', '=', False)])
-            if not self.env.context.get('reversal', False):
-                partial.assign_balance_to_partial_reconcile()
+            partial.assign_balance_to_partial_reconcile()
         return res
 
 
@@ -160,7 +162,8 @@ class AccountMove(models.Model):
         for move in self:
             if not move.company_id.ou_is_self_balanced:
                 continue
-
+            if self.env.context.get('reconciling'):
+                continue
             # If all move lines point to the same operating unit, there's no
             # need to create a balancing move line
             ou_list_ids = [line.operating_unit_id and
@@ -255,15 +258,11 @@ class AccountPartialReconcile(models.Model):
                 line_data = self.debit_move_id.\
                     _prepare_inter_ou_balancing_partial_reconcile(
                         move_id, ou_id, self.amount, 0.0)
-            if line_data:
-                amls.append(ml_obj.with_context(wip=True).
-                            create(line_data))
-        if amls:
-            move_id.with_context(wip=False).\
-                write({'line_ids': [(4, aml.id) for aml in amls]})
-            ctx = self.env.context.copy()
-            ctx.update(reconciling=True)
-            move_id.with_context(ctx).post()
+            amls.append(ml_obj.with_context(wip=True).
+                        create(line_data))
+        move_id.with_context(wip=False).\
+            write({'line_ids': [(4, aml.id) for aml in amls]})
+        move_id.with_context(reconciling=True).post()
         return move_id.id
 
     @api.multi
@@ -272,16 +271,15 @@ class AccountPartialReconcile(models.Model):
             return
         for rec in self:
             if rec.bal_move_id:
-                rec.with_context(ctx).reverse_bal_entries()
-            if rec.debit_move_id.operating_unit_id != rec.credit_move_id.operating_unit_id:
+                rec.reverse_bal_entries()
+            if rec.debit_move_id.operating_unit_id != \
+                    rec.credit_move_id.operating_unit_id:
                 rec.bal_move_id = rec.create_ou_balance()
 
     @api.multi
     def unlink(self):
         for rec in self:
             if rec.bal_move_id and not self.env.context.get('reversal', False):
-                ctx = self.env.context.copy()
-                ctx.update(reversal=True)
-                rec.with_context(ctx).reverse_bal_entries()
+                rec.with_context(reversal=True).reverse_bal_entries()
         result = super(AccountPartialReconcile, self).unlink()
         return result
