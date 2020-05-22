@@ -57,7 +57,7 @@ class AccountMoveLine(models.Model):
             AccountMoveLine, self)._prepare_writeoff_first_line_values(values)
         if res['journal_id']:
             journal = self.env['account.journal'].browse(res['journal_id'])
-            res['operating_unit_id'] = journal.operating_unit_id.id
+            res['operating_unit_id'] = self.operating_unit_id.id
         return res
 
     @api.multi
@@ -66,7 +66,7 @@ class AccountMoveLine(models.Model):
             AccountMoveLine, self)._prepare_writeoff_second_line_values(values)
         if res['journal_id']:
             journal = self.env['account.journal'].browse(res['journal_id'])
-            res['operating_unit_id'] = journal.operating_unit_id.id
+            res['operating_unit_id'] = self.operating_unit_id.id
         return res
 
     @api.multi
